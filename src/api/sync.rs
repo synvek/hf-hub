@@ -6,6 +6,7 @@ use http::{StatusCode, Uri};
 use indicatif::ProgressBar;
 use rand::Rng;
 use std::collections::HashMap;
+use std::io;
 use std::io::Read;
 use std::io::Seek;
 use std::num::ParseIntError;
@@ -43,7 +44,10 @@ fn wrap_read<P: Progress, R: Read>(inner: R, progress: &mut P) -> Wrapper<P, R> 
 impl<P: Progress, R: Read> Read for Wrapper<'_, P, R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let read = self.inner.read(buf)?;
-        self.progress.update(read);
+        let check_point = self.progress.update(read);
+        if !check_point {
+            return Err(io::Error::new(io::ErrorKind::Other, "Download interrupted"));
+        }
         Ok(read)
     }
 }
@@ -355,11 +359,15 @@ impl ApiBuilder {
     }
 }
 
+///  metadata
 #[derive(Debug)]
-struct Metadata {
-    commit_hash: String,
-    etag: String,
-    size: usize,
+pub struct Metadata {
+    /// commit_hash
+    pub commit_hash: String,
+    /// etag
+    pub etag: String,
+    /// size
+    pub size: usize,
 }
 
 /// The actual Api used to interacto with the hub.
@@ -448,7 +456,8 @@ impl Api {
         &self.client
     }
 
-    fn metadata(&self, url: &str) -> Result<Metadata, ApiError> {
+    ///  mettdata
+    pub fn metadata(&self, url: &str) -> Result<Metadata, ApiError> {
         let mut response = self
             .no_redirect_client
             .get(url)

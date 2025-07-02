@@ -21,14 +21,14 @@ pub trait Progress {
     fn init(&mut self, size: usize, filename: &str);
     /// This function is called whenever `size` bytes have been
     /// downloaded in the temporary file
-    fn update(&mut self, size: usize);
+    fn update(&mut self, size: usize) -> bool;
     /// This is called at the end of the download
     fn finish(&mut self);
 }
 
 impl Progress for () {
     fn init(&mut self, _size: usize, _filename: &str) {}
-    fn update(&mut self, _size: usize) {}
+    fn update(&mut self, _size: usize) -> bool { true}
     fn finish(&mut self) {}
 }
 
@@ -50,8 +50,9 @@ impl Progress for ProgressBar {
         self.set_message(message);
     }
 
-    fn update(&mut self, size: usize) {
-        self.inc(size as u64)
+    fn update(&mut self, size: usize) -> bool {
+        self.inc(size as u64);
+        true
     }
 
     fn finish(&mut self) {
