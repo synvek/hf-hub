@@ -767,13 +767,21 @@ impl ApiRepo {
             .blob_path(&metadata.etag);
         std::fs::create_dir_all(blob_path.parent().unwrap())?;
 
-        let lock = lock_file(blob_path.clone()).unwrap();
+        let lock_result = lock_file(blob_path.clone());
+        if lock_result.is_err() {
+            return Err(ApiError::LockAcquisition(blob_path))
+        }
+        let lock = lock_result.unwrap();
         let mut tmp_path = blob_path.clone();
         tmp_path.set_extension(EXTENSION);
-        let tmp_filename =
+        let tmp_filename_result =
             self.api
-                .download_tempfile(&url, metadata.size, progress, tmp_path, filename)?;
-
+                .download_tempfile(&url, metadata.size, progress, tmp_path, filename);
+        if tmp_filename_result.is_err() {
+            drop(lock);
+            return  Err(tmp_filename_result.unwrap_err());
+        }
+        let tmp_filename = tmp_filename_result.unwrap();
         std::fs::rename(tmp_filename, &blob_path)?;
         drop(lock);
 
