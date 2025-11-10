@@ -804,6 +804,65 @@ impl ApiRepo {
         Ok(pointer_path)
     }
 
+    /// Download external file
+    pub fn download_external_with_progress<P: Progress>(
+        &self,
+        url: &str,
+        metadata: Metadata,
+        blob_path: PathBuf,
+        pointer_path: PathBuf,
+        ref_path: PathBuf,
+        filename: &str,
+        progress: P,
+    ) -> Result<PathBuf, ApiError> {
+        //let url = self.url(filename);
+        //let metadata = self.api.metadata(&url)?;
+
+        // let blob_path = self
+        //     .api
+        //     .cache
+        //     .repo(self.repo.clone())
+        //     .blob_path(&metadata.etag);
+
+        std::fs::create_dir_all(blob_path.parent().unwrap())?;
+
+        let lock_result = lock_file(blob_path.clone());
+        if lock_result.is_err() {
+            return Err(ApiError::LockAcquisition(blob_path))
+        }
+        let lock = lock_result.unwrap();
+        let mut tmp_path = blob_path.clone();
+        tmp_path.set_extension(EXTENSION);
+        let tmp_filename_result =
+            self.api
+                .download_tempfile(&url, metadata.size, progress, tmp_path, filename);
+        if tmp_filename_result.is_err() {
+            drop(lock);
+            return  Err(tmp_filename_result.unwrap_err());
+        }
+        let tmp_filename = tmp_filename_result.unwrap();
+        std::fs::rename(tmp_filename, &blob_path)?;
+        drop(lock);
+
+        // let mut pointer_path = self
+        //     .api
+        //     .cache
+        //     .repo(self.repo.clone())
+        //     .pointer_path(&metadata.commit_hash);
+        // pointer_path.push(filename);
+        std::fs::create_dir_all(pointer_path.parent().unwrap()).ok();
+
+        symlink_or_rename(&blob_path, &pointer_path)?;
+        self.api
+            .cache
+            .repo(self.repo.clone())
+            //.create_ref(&metadata.commit_hash)?;
+            .create_ref_external(&metadata.commit_hash, ref_path)?;
+        assert!(pointer_path.exists());
+
+        Ok(pointer_path)
+    }
+
     /// Downloads a remote file (if not already present) into the cache directory
     /// to be used locally.
     /// This functions require internet access to verify if new versions of the file
@@ -831,6 +890,11 @@ impl ApiRepo {
         Ok(self.info_request().call().map_err(Box::new)?.into_json()?)
     }
 
+    /// Get info for external Repo
+    pub fn info_external(&self, url: &str) -> Result<serde_json::Value, ApiError> {
+        Ok(self.info_request_external(url).call().map_err(Box::new)?.into_json()?)
+    }
+
     /// Get the raw [`ureq::Request`] with the url and method already set
     /// ```
     /// # use hf_hub::api::sync::Api;
@@ -842,6 +906,11 @@ impl ApiRepo {
     /// ```
     pub fn info_request(&self) -> Request {
         let url = format!("{}/api/{}", self.api.endpoint, self.repo.api_url());
+        self.api.client.get(&url)
+    }
+
+    /// Generate request for external request
+    pub fn info_request_external(&self, url: &str) -> Request {
         self.api.client.get(&url)
     }
 }

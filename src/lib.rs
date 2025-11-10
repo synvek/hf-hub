@@ -178,6 +178,20 @@ impl CacheRepo {
         Ok(())
     }
 
+    /// Creates a reference in the cache directory that points branches to the correct
+    /// commits within the blobs.
+    pub fn create_ref_external(&self, commit_hash: &str, ref_path: PathBuf) -> Result<(), std::io::Error> {
+        // Needs to be done like this because revision might contain `/` creating subfolders here.
+        std::fs::create_dir_all(ref_path.parent().unwrap())?;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&ref_path)?;
+        file.write_all(commit_hash.trim().as_bytes())?;
+        Ok(())
+    }
+
     #[cfg(any(feature = "tokio", feature = "ureq"))]
     pub(crate) fn blob_path(&self, etag: &str) -> PathBuf {
         let mut blob_path = self.path();
