@@ -417,7 +417,9 @@ fn make_relative(src: &Path, dst: &Path) -> PathBuf {
     }
 }
 
-fn symlink_or_rename(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
+///
+/// Create links for download file
+pub fn symlink_or_rename(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
     if dst.exists() {
         return Ok(());
     }
